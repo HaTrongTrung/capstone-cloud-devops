@@ -1,0 +1,16 @@
+version: 2.1
+
+jobs:
+  clean-build:
+    docker:
+      - image: maven:3.5.3-jdk-8-alpine
+    steps:
+      - checkout
+      - run:
+          name: clean install
+          command: mvn clean install -DskipTests
+
+workflows:
+  default:
+    jobs:
+      - clean-build
