@@ -10,7 +10,18 @@ jobs:
           name: clean install
           command: mvn clean install -DskipTests
 
+  test:
+    docker:
+      - image: maven:3.5.3-jdk-8-alpine
+    steps:
+      - checkout
+      - run:
+          name: test code
+          command: mvn test
+
 workflows:
   default:
     jobs:
       - clean-build
+      - test:
+          requires: [clean-build]
