@@ -29,10 +29,10 @@ jobs:
       - checkout
       - docker/check
       - docker/build:
-          image: $DOCKER_USERNAME/capstone-cloud-devops:${CIRCLE_WORKFLOW_ID:0:7}
+          image: $DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
       - docker/push:
           digest-path: /tmp/digest.txt
-          image: $DOCKER_USERNAME/capstone-cloud-devops:${CIRCLE_WORKFLOW_ID:0:7}
+          image: $DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
       - run:
           command: |
             echo "Digest is: $(</tmp/digest.txt)"
