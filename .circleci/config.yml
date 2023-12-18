@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  docker: circleci/docker@2.4.0
+
 jobs:
   clean-build:
     docker:
@@ -19,9 +22,25 @@ jobs:
           name: test code
           command: mvn test
 
+  build-and-push-image:
+    executor: docker/docker
+    steps:
+      - setup_remote_docker
+      - checkout
+      - docker/check
+      - docker/build:
+          image: $DOCKER_USERNAME/capstone-cloud-devops:${CIRCLE_WORKFLOW_ID:0:7}
+      - docker/push:
+          digest-path: /tmp/digest.txt
+          image: $DOCKER_USERNAME/capstone-cloud-devops:${CIRCLE_WORKFLOW_ID:0:7}
+      - run:
+          command: |
+            echo "Digest is: $(</tmp/digest.txt)"
 workflows:
   default:
     jobs:
       - clean-build
       - test:
           requires: [clean-build]
+      - build-and-push-image:
+          requires: [test]
