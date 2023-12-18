@@ -36,6 +36,85 @@ jobs:
       - run:
           command: |
             echo "Digest is: $(</tmp/digest.txt)"
+
+  create-cluster:
+    docker:
+      - image: circleci/python:3.8
+    steps:
+      - checkout
+      - run: yum install -y tar gzip
+      - run:
+            sudo curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+      - run: 
+          name: Create EKS cluster if not exist
+          command: |
+            CLUSTER_NAME="capstone-cluster"
+            if eksctl get cluster --region=us-east-1 --name "$CLUSTER_NAME"
+            then
+              echo "Cluster $CLUSTER_NAME is exist"
+            else
+              eksctl create cluster --region=us-east-1 --name "$CLUSTER_NAME"
+            fi
+
+  deploy:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run: yum install -y tar gzip
+      - run:
+          name: Install kubectl
+          command: |
+            curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - run:
+          name: Config kubectl connect to aws
+          command: |
+            aws eks update-kubeconfig --region us-east-1 --name capstone-cluster
+      - run:
+          name: create pod
+          command: |
+            kubectl run capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --image="$DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}" --port 80
+      - run:
+          name: expose pod
+          command: |
+            kubectl expose pod capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --type=LoadBalancer --port=80
+            sleep 1m
+      - run:
+          name: extract IP address of app
+          command: |
+            cd .circleci
+
+            ip_address=$(kubectl get services capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --output jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            echo $ip_address >> ip_address.txt
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - project/.circleci/ip_address.txt
+
+  smoke-test:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Smoke test.
+          command: |
+              cd .circleci
+              export APP_IP=$(cat ip_address.txt)
+              export APP_ENDPOINT="http://${APP_IP}:8080/"
+
+              sleep 10s
+              if curl ${APP_ENDPOINT} | grep "hello"
+              then
+                exit 0
+              else
+                exit 1
+              fi
+
 workflows:
   default:
     jobs:
@@ -44,3 +123,9 @@ workflows:
           requires: [clean-build]
       - build-and-push-image:
           requires: [test]
+      - create-cluster:
+          requires: [build-and-push-image]
+      - deploy:
+          requires: [create-cluster]
+      - smoke-test:
+          requires: [deploy]
