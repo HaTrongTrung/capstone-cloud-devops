@@ -49,6 +49,9 @@ jobs:
             unzip awscliv2.zip
             sudo ./aws/install
 
+            curl --silent --location "https://dl.k8s.io/release/$(curl --silent --location https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" --output kubectl
+            sudo install kubectl /usr/local/bin/
+
             sudo curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
             sudo mv /tmp/eksctl /usr/local/bin
       - run: 
@@ -57,32 +60,32 @@ jobs:
             CLUSTER_NAME="capstone-cluster"
             if eksctl get cluster --region=us-east-1 --name "$CLUSTER_NAME"
             then
-              echo "Cluster $CLUSTER_NAME is exist"
+              echo "Cluster $CLUSTER_NAME is existed"
             else
               eksctl create cluster --region=us-east-1 --name "$CLUSTER_NAME"
             fi
 
   deploy:
     docker:
-      - image: amazon/aws-cli
+      - image: circleci/python:3.8
     steps:
       - checkout
       - run:
-          name: Install kubectl
+          name: Install tools
           command: |
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+
             curl --silent --location "https://dl.k8s.io/release/$(curl --silent --location https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" --output kubectl
             sudo install kubectl /usr/local/bin/
       - run:
-          name: Config kubectl connect to aws
+          name: Config kubectl
           command: |
             aws eks update-kubeconfig --region us-east-1 --name capstone-cluster
-      - run:
-          name: create pod
-          command: |
+
             kubectl run capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --image="$DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}" --port 80
-      - run:
-          name: expose pod
-          command: |
+
             kubectl expose pod capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --type=LoadBalancer --port=80
             sleep 1m
       - run:
