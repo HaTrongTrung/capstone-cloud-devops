@@ -26,7 +26,7 @@ jobs:
       - run: 
           name: Create EKS cluster if not exist
           command: |
-            if eksctl get cluster --region=us-east-1 --name "capstone"
+            if aws eks describe-cluster --name "capstone" >/dev/null 2>&1;
             then
               echo "Cluster capstone is existed"
             else
@@ -80,6 +80,9 @@ jobs:
 
             curl --silent --location "https://dl.k8s.io/release/$(curl --silent --location https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" --output kubectl
             sudo install kubectl /usr/local/bin/
+
+            sudo apt-get update
+            sudo apt-get install -y curl
       - run:
           name: Get config
           command: |
@@ -89,15 +92,7 @@ jobs:
       - run:
           name: Deploy to cluster
           command: |
-            NS=$(kubectl get namespace trunght-capstone | awk '{print $1}' | grep -v NAME)
-            echo $NS
-            if [ "$NS" = "trunght-capstone" ]
-            then
-              echo "Namespace exists"
-            else
-              echo "Creating Namespace"
-              kubectl create namespace trunght-capstone
-            fi
+            kubectl create namespace trunght-capstone
             kubectl config set-context --current --namespace=trunght-capstone
             kubectl apply -f deployment.yaml -n trunght-capstone
             kubectl get deployments -n trunght-capstone
