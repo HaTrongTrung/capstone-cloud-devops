@@ -92,22 +92,30 @@ jobs:
       - run:
           name: Deploy to cluster
           command: |
-            kubectl create namespace trunght-capstone
+            NS=$(kubectl get namespace trunght-capstone | awk '{print $1}' | grep -v NAME)
+            echo $NS
+            if [ "$NS" = "trunght-capstone" ]
+            then
+              echo "Namespace already existed"
+            else
+              echo "Creating Namespace"
+              kubectl create namespace trunght-capstone
+            fi
             kubectl config set-context --current --namespace=trunght-capstone
             kubectl apply -f deployment.yaml -n trunght-capstone
-            kubectl get deployments -n trunght-capstone
 
             LB_URL=$(kubectl get services -n trunght-capstone trunght-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
             echo "URL: $LB_URL"
             echo "$LB_URL" > url.txt
             aws s3 cp url.txt s3://trunght1-capstone/url.txt
+            kubectl get deployments -n trunght-capstone
 
             # redeploy if docker-image was changed
-            kubectl -n capstone-cloud-devops set image deployment/trunght-deployment trunght=814024668676.dkr.ecr.us-east-1.amazonaws.com/capstone:v1
+            kubectl -n trunght-capstone set image deployment/trunght-deployment trunght=814024668676.dkr.ecr.us-east-1.amazonaws.com/capstone:latest
             
-            kubectl -n capstone-cloud-devops get nodes
-            kubectl -n capstone-cloud-devops get pods
-            kubectl -n capstone-cloud-devops rollout status deployment trunght-deployment
+            kubectl -n trunght-capstone get nodes
+            kubectl -n trunght-capstone get pods
+            kubectl -n trunght-capstone rollout status deployment trunght-deployment
 
   smoke-test:
     docker:
