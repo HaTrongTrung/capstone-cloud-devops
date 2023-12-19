@@ -57,7 +57,9 @@ jobs:
   build-and-push-image:
     executor: docker/docker
     steps:
+      - setup_remote_docker
       - checkout
+      - docker/check
       - aws-ecr/build_and_push_image:
           auth:
             - aws-cli/setup
