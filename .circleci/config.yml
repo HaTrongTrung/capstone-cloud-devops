@@ -57,12 +57,11 @@ jobs:
       - run: 
           name: Create EKS cluster if not exist
           command: |
-            CLUSTER_NAME="capstone-cluster"
-            if eksctl get cluster --region=us-east-1 --name "$CLUSTER_NAME"
+            if eksctl get cluster --region=us-east-1 --name "capstone"
             then
-              echo "Cluster $CLUSTER_NAME is existed"
+              echo "Cluster capstone is existed"
             else
-              eksctl create cluster --region=us-east-1 --name "$CLUSTER_NAME"
+              eksctl create cluster -f eks/cluster.yaml
             fi
 
   deploy:
@@ -82,7 +81,7 @@ jobs:
       - run:
           name: Config kubectl
           command: |
-            aws eks update-kubeconfig --region us-east-1 --name capstone-cluster
+            aws eks update-kubeconfig --region us-east-1 --name capstone
 
             kubectl run capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --image="$DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}" --port 80
 
@@ -115,7 +114,7 @@ jobs:
               export APP_ENDPOINT="http://${APP_IP}:8080/"
 
               sleep 10s
-              if curl ${APP_ENDPOINT} | grep "hello"
+              if curl ${APP_ENDPOINT} | grep "Hello"
               then
                 exit 0
               else
