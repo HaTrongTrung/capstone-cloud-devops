@@ -1,5 +1,4 @@
-## Remove version to make lint failed
-FROM maven
+FROM maven:3.5.3-jdk-8-alpine
 
 ## Step 1:
 WORKDIR /app

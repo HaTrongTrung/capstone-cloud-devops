@@ -133,6 +133,20 @@ jobs:
             kubectl -n trunght-capstone get pods
             kubectl -n trunght-capstone rollout status deployment trunght-deployment
       - run:
+          name: Verify kubectl
+          command: |
+            echo "kubectl get nodes"
+            kubectl get nodes
+
+            echo "kubectl get deployment"
+            kubectl get deployment
+
+            echo "kubectl get pod"
+            kubectl get pod -o wide
+
+            echo "kubectl get services"
+            kubectl get services
+      - run:
           name: Smoke test.
           command: |
             export APP_URL=$(cat url.txt)
