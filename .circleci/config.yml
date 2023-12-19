@@ -60,6 +60,9 @@ jobs:
             if eksctl get cluster --region=us-east-1 --name "capstone"
             then
               echo "Cluster capstone is existed"
+              kubectl get nodes
+              aws s3 cp ~/.kube/config s3://trunght1-capstone/kubeconfig
+              cat ~/.kube/config
             else
               eksctl create cluster -f eks/cluster.yaml
             fi
