@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trunght-deployment
+  namespace: trunght-capstone
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: trunght
+  template:
+    metadata:
+      labels:
+        app: trunght
+    spec:
+      containers:
+        - name: trunght
+          image: 814024668676.dkr.ecr.us-east-1.amazonaws.com/capstone:latest
+          ports:
+            - containerPort: 80
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trunght-service
+  namespace: trunght-capstone
+spec:
+  selector:
+    app: trunght
+  type: LoadBalancer
+  ports:
+    - port: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trunght-ingress
+  namespace: trunght-capstone
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: trunght-service
+                port:
+                  number: 80

@@ -2,6 +2,8 @@ version: 2.1
 
 orbs:
   docker: circleci/docker@2.4.0
+  aws-cli: circleci/aws-cli@4.0
+  aws-ecr: circleci/aws-ecr@9.0.1
 
 jobs:
   create-cluster:
@@ -60,12 +62,10 @@ jobs:
       - docker/check
       - docker/build:
           image: hatrongtrung/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
-      - docker/push:
-          digest-path: /tmp/digest.txt
-          image: hatrongtrung/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
-      - run:
-          command: |
-            echo "Digest is: $(</tmp/digest.txt)"
+      - aws-ecr/build_and_push_image:
+          auth:
+            - aws-cli/setup
+          repo: capstone
 
   deploy:
     docker:
@@ -82,47 +82,56 @@ jobs:
             curl --silent --location "https://dl.k8s.io/release/$(curl --silent --location https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" --output kubectl
             sudo install kubectl /usr/local/bin/
       - run:
-          name: Config kubectl
+          name: Get config
           command: |
-            aws eks update-kubeconfig --region us-east-1 --name capstone
-
-            kubectl run capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --image="hatrongtrung/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}" --port 80
-
-            kubectl expose pod capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --type=LoadBalancer --port=80
-            sleep 1m
+            aws s3 cp s3://trunght1-capstone/kubeconfig ~/.kube/config
+            export KUBECONFIG=$KUBECONFIG:~/.kube/config
+            kubectl get nodes
       - run:
-          name: extract IP address of app
+          name: Deploy to cluster
           command: |
-            cd .circleci
+            NS=$(kubectl get namespace capstone-cloud-devops | awk '{print $1}' | grep -v NAME)
+            echo $NS
+            if [ "$NS" = "capstone-cloud-devops" ]
+            then
+              echo "Namespace exists"
+            else
+              echo "Creating Namespace"
+              kubectl create namespace capstone-cloud-devops
+            fi
+            kubectl config set-context --current --namespace=capstone-cloud-devops
+            kubectl apply -f deployment.yaml -n capstone-cloud-devops
+            kubectl get deployments -n capstone-cloud-devops
 
-            ip_address=$(kubectl get services capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --output jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-            echo $ip_address >> ip_address.txt
-      - persist_to_workspace:
-          root: ~/
-          paths:
-            - project/.circleci/ip_address.txt
+            LB_URL=$(kubectl get services -n capstone-cloud-devops trunght-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            echo "URL: $LB_URL"
+            echo "$LB_URL" > url.txt
+            aws s3 cp url.txt s3://trunght1-capstone/url.txt
+
+            # redeploy if docker-image was changed
+            kubectl -n capstone-cloud-devops set image deployment/trunght-deployment trunght=814024668676.dkr.ecr.us-east-1.amazonaws.com/capstone:v1
+            
+            kubectl -n capstone-cloud-devops get nodes
+            kubectl -n capstone-cloud-devops get pods
+            kubectl -n capstone-cloud-devops rollout status deployment trunght-deployment
 
   smoke-test:
     docker:
-      - image: python:3.7.3-stretch
+      - image: circleci/python:3.8
     steps:
       - checkout
-      - attach_workspace:
-          at: ~/
       - run:
           name: Smoke test.
           command: |
-              cd .circleci
-              export APP_IP=$(cat ip_address.txt)
-              export APP_ENDPOINT="http://${APP_IP}:8080/"
-
-              sleep 10s
-              if curl ${APP_ENDPOINT} | grep "Hello"
-              then
-                exit 0
-              else
-                exit 1
-              fi
+            export APP_URL=$(cat url.txt)
+            export APP_ENDPOINT="http://${APP_URL}:8080/"
+            sleep 10s
+            if curl ${APP_ENDPOINT} | grep "Hello"
+            then
+              exit 0
+            else
+              exit 1
+            fi
 
 workflows:
   default:
