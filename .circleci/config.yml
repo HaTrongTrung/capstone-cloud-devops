@@ -90,20 +90,20 @@ jobs:
       - run:
           name: Deploy to cluster
           command: |
-            NS=$(kubectl get namespace capstone-cloud-devops | awk '{print $1}' | grep -v NAME)
+            NS=$(kubectl get namespace trunght-capstone | awk '{print $1}' | grep -v NAME)
             echo $NS
-            if [ "$NS" = "capstone-cloud-devops" ]
+            if [ "$NS" = "trunght-capstone" ]
             then
               echo "Namespace exists"
             else
               echo "Creating Namespace"
-              kubectl create namespace capstone-cloud-devops
+              kubectl create namespace trunght-capstone
             fi
-            kubectl config set-context --current --namespace=capstone-cloud-devops
-            kubectl apply -f deployment.yaml -n capstone-cloud-devops
-            kubectl get deployments -n capstone-cloud-devops
+            kubectl config set-context --current --namespace=trunght-capstone
+            kubectl apply -f deployment.yaml -n trunght-capstone
+            kubectl get deployments -n trunght-capstone
 
-            LB_URL=$(kubectl get services -n capstone-cloud-devops trunght-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            LB_URL=$(kubectl get services -n trunght-capstone trunght-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
             echo "URL: $LB_URL"
             echo "$LB_URL" > url.txt
             aws s3 cp url.txt s3://trunght1-capstone/url.txt
