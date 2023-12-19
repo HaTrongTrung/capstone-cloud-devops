@@ -4,6 +4,36 @@ orbs:
   docker: circleci/docker@2.4.0
 
 jobs:
+  create-cluster:
+    docker:
+      - image: circleci/python:3.8
+    steps:
+      - checkout
+      - run:
+          name: Install tools
+          command: |
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+
+            curl --silent --location "https://dl.k8s.io/release/$(curl --silent --location https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" --output kubectl
+            sudo install kubectl /usr/local/bin/
+
+            sudo curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+      - run: 
+          name: Create EKS cluster if not exist
+          command: |
+            if eksctl get cluster --region=us-east-1 --name "capstone"
+            then
+              echo "Cluster capstone is existed"
+            else
+              eksctl create cluster -f eks/cluster.yaml
+              kubectl get nodes
+              aws s3 cp ~/.kube/config s3://trunght1-capstone/kubeconfig
+              cat ~/.kube/config
+            fi
+
   clean-build:
     docker:
       - image: maven:3.5.3-jdk-8-alpine
@@ -29,43 +59,13 @@ jobs:
       - checkout
       - docker/check
       - docker/build:
-          image: $DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
+          image: hatrongtrung/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
       - docker/push:
           digest-path: /tmp/digest.txt
-          image: $DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
+          image: hatrongtrung/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}
       - run:
           command: |
             echo "Digest is: $(</tmp/digest.txt)"
-
-  create-cluster:
-    docker:
-      - image: circleci/python:3.8
-    steps:
-      - checkout
-      - run:
-          name: Install tools
-          command: |
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install
-
-            curl --silent --location "https://dl.k8s.io/release/$(curl --silent --location https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" --output kubectl
-            sudo install kubectl /usr/local/bin/
-
-            sudo curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-            sudo mv /tmp/eksctl /usr/local/bin
-      - run: 
-          name: Create EKS cluster if not exist
-          command: |
-            if eksctl get cluster --region=us-east-1 --name "capstone"
-            then
-              echo "Cluster capstone is existed"
-              kubectl get nodes
-              aws s3 cp ~/.kube/config s3://trunght1-capstone/kubeconfig
-              cat ~/.kube/config
-            else
-              eksctl create cluster -f eks/cluster.yaml
-            fi
 
   deploy:
     docker:
@@ -86,7 +86,7 @@ jobs:
           command: |
             aws eks update-kubeconfig --region us-east-1 --name capstone
 
-            kubectl run capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --image="$DOCKER_USERNAME/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}" --port 80
+            kubectl run capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --image="hatrongtrung/capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7}" --port 80
 
             kubectl expose pod capstone-cloud-devops-${CIRCLE_WORKFLOW_ID:0:7} --type=LoadBalancer --port=80
             sleep 1m
@@ -127,14 +127,13 @@ jobs:
 workflows:
   default:
     jobs:
+      - create-cluster
       - clean-build
       - test:
           requires: [clean-build]
       - build-and-push-image:
           requires: [test]
-      - create-cluster:
-          requires: [build-and-push-image]
       - deploy:
-          requires: [create-cluster]
+          requires: [build-and-push-image, create-cluster]
       - smoke-test:
           requires: [deploy]

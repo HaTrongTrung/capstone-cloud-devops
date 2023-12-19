@@ -13,6 +13,8 @@ nodeGroups:
     instanceType: t3.small
     desiredCapacity: 2
     volumeSize: 20
+    ssh: # use existing EC2 key
+      publicKeyName: capstone
     privateNetworking: true
 
 cloudWatch:
