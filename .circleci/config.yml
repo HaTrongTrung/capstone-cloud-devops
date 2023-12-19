@@ -6,6 +6,22 @@ orbs:
   aws-ecr: circleci/aws-ecr@9.0.1
 
 jobs:
+  verify:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      - checkout
+      - run:
+          name: create venv
+          command: |
+            python3 -m venv venv
+      - run:
+          name: install dependencies and run lint
+          command: |
+            . venv/bin/activate
+            make install
+            make lint
+
   create-cluster:
     docker:
       - image: circleci/python:3.8
@@ -116,12 +132,6 @@ jobs:
             kubectl -n trunght-capstone get nodes
             kubectl -n trunght-capstone get pods
             kubectl -n trunght-capstone rollout status deployment trunght-deployment
-
-  smoke-test:
-    docker:
-      - image: circleci/python:3.8
-    steps:
-      - checkout
       - run:
           name: Smoke test.
           command: |
@@ -138,13 +148,13 @@ jobs:
 workflows:
   default:
     jobs:
+      - verify
       - create-cluster
-      - clean-build
+      - clean-build:
+          requires: [verify]
       - test:
           requires: [clean-build]
       - build-and-push-image:
           requires: [test]
       - deploy:
           requires: [build-and-push-image, create-cluster]
-      - smoke-test:
-          requires: [deploy]
